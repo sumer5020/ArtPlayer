@@ -1,4 +1,3 @@
-import { errorHandle, addClass, removeClass, isMobile, sleep, includeFromEvent } from '../utils';
 import Component from '../utils/component';
 import fullscreen from './fullscreen';
 import fullscreenWeb from './fullscreenWeb';
@@ -10,6 +9,18 @@ import volume from './volume';
 import setting from './setting';
 import screenshot from './screenshot';
 import airplay from './airplay';
+import {
+    def,
+    sleep,
+    append,
+    addClass,
+    isMobile,
+    removeClass,
+    errorHandle,
+    inverseClass,
+    createElement,
+    includeFromEvent,
+} from '../utils';
 
 export default class Control extends Component {
     constructor(art) {
@@ -203,5 +214,67 @@ export default class Control extends Component {
         }
 
         super.add(option);
+    }
+
+    check(target) {
+        target.$control_value.innerHTML = target.html;
+        for (let index = 0; index < target.$control_option.length; index++) {
+            const item = target.$control_option[index];
+            item.default = item === target;
+            if (item.default) {
+                inverseClass(item.$control_item, 'art-current');
+            }
+        }
+    }
+
+    selector(option, $ref, events) {
+        const { proxy } = this.art.events;
+
+        addClass($ref, 'art-control-selector');
+        const $value = createElement('div');
+        addClass($value, 'art-selector-value');
+        append($value, option.html);
+        $ref.innerText = '';
+        append($ref, $value);
+
+        const $list = createElement('div');
+        addClass($list, 'art-selector-list');
+        append($ref, $list);
+
+        for (let index = 0; index < option.selector.length; index++) {
+            const item = option.selector[index];
+            const $item = createElement('div');
+            addClass($item, 'art-selector-item');
+            if (item.default) addClass($item, 'art-current');
+            $item.dataset.index = index;
+            $item.dataset.value = item.value;
+            $item.innerHTML = item.html;
+            append($list, $item);
+
+            def(item, '$control_option', {
+                get: () => option.selector,
+            });
+
+            def(item, '$control_item', {
+                get: () => $item,
+            });
+
+            def(item, '$control_value', {
+                get: () => $value,
+            });
+        }
+
+        const event = proxy($list, 'click', async (event) => {
+            const path = event.composedPath() || [];
+            const item = option.selector.find(
+                (item) => item.$control_item === path.find(($item) => item.$control_item === $item),
+            );
+            this.check(item);
+            if (option.onSelect) {
+                $value.innerHTML = await option.onSelect.call(this.art, item, item.$control_item, event);
+            }
+        });
+
+        events.push(event);
     }
 }

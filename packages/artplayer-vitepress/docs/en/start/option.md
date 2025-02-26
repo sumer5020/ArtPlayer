@@ -871,16 +871,15 @@ var art = new Artplayer({
 
 Set the video subtitles, supporting subtitle formats: `vtt`, `srt`, `ass`
 
-| Property | Type     | Description                                 |
-| -------- | -------- | ------------------------------------------- |
-| `name`   | `String` | Subtitle name                               |
-| `url`    | `String` | Subtitle URL                                |
-| `type`   | `String` | Subtitle type, options: `vtt`, `srt`, `ass` |
-
-| `style`     | `Object`   | Subtitle style                      |
-| `encoding`  | `String`   | Subtitle encoding, default `utf-8`  |
+| Property    | Type       | Description                                   |
+| ----------- | ---------- | --------------------------------------------- |
+| `name`      | `String`   | Subtitle name                                 |
+| `url`       | `String`   | Subtitle URL                                  |
+| `type`      | `String`   | Subtitle type, options: `vtt`, `srt`, `ass`   |
+| `style`     | `Object`   | Subtitle style                                |
+| `encoding`  | `String`   | Subtitle encoding, default `utf-8`            |
 | `escape`    | `Boolean`  | Whether to escape `html` tags, default `true` |
-| `onVttLoad` | `Function` | Function to modify `vtt` text       |
+| `onVttLoad` | `Function` | Function to modify `vtt` text                 |
 
 <div className="run-code">▶ Run Code</div>
 
@@ -1183,3 +1182,20 @@ var art = new Artplayer({
 [artplayer/types/cssVar.d.ts](https://github.com/zhw2590582/ArtPlayer/blob/master/packages/artplayer/types/cssVar.d.ts)
 
 :::
+
+## `proxy`
+
+-   Type: `function`
+-   Default: `undefined`
+
+The function can return a third-party `HTMLCanvasElement` or `HTMLVideoElement`, for example, it can proxy an existing `video` DOM element
+
+<div className="run-code">▶ Run Code</div>
+
+```js{4}
+var art = new Artplayer({
+    container: '.artplayer-app',
+    url: '/assets/sample/video.mp4',
+    proxy: () => document.createElement('video')
+});
+```

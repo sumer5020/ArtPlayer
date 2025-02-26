@@ -7,10 +7,16 @@ export default function subtitleOffset(art) {
         html: i18n.get('Subtitle Offset'),
         icon: icons.subtitle,
         tooltip: '0s',
-        range: [0, -5, 5, 0.1],
+        range: [0, -10, 10, 0.1],
         onChange(item) {
-            art.subtitleOffset = item.range;
-            return item.range + 's';
+            art.subtitleOffset = item.range[0];
+            return item.range[0] + 's';
+        },
+        mounted: (_, item) => {
+            art.on('subtitleOffset', (value) => {
+                item.$range.value = value;
+                item.tooltip = value + 's';
+            });
         },
     };
 }

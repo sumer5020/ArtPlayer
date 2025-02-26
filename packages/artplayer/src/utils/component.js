@@ -1,16 +1,4 @@
-import {
-    remove,
-    append,
-    tooltip,
-    hasClass,
-    addClass,
-    getStyle,
-    setStyles,
-    removeClass,
-    inverseClass,
-    createElement,
-} from './dom';
-import { isStringOrNumber } from './format';
+import { remove, append, tooltip, hasClass, addClass, setStyles, removeClass, createElement } from './dom';
 import { errorHandle } from './error';
 import validator from 'option-validator';
 import { ComponentOption } from '../scheme';
@@ -89,7 +77,7 @@ export default class Component {
         }
 
         if (option.selector && ['left', 'right'].includes(option.position)) {
-            this.addSelector(option, $ref, events);
+            this.selector(option, $ref, events);
         }
 
         this[name] = $ref;
@@ -100,58 +88,6 @@ export default class Component {
         }
 
         return $ref;
-    }
-
-    addSelector(option, $ref, events) {
-        const { hover, proxy } = this.art.events;
-
-        addClass($ref, 'art-control-selector');
-        const $value = createElement('div');
-        addClass($value, 'art-selector-value');
-        append($value, option.html);
-        $ref.innerText = '';
-        append($ref, $value);
-
-        const list = option.selector
-            .map(
-                (item, index) =>
-                    `<div class="art-selector-item ${item.default ? 'art-current' : ''}" data-index="${index}">${
-                        item.html
-                    }</div>`,
-            )
-            .join('');
-        const $list = createElement('div');
-        addClass($list, 'art-selector-list');
-        append($list, list);
-        append($ref, $list);
-
-        const setLeft = () => {
-            const refWidth = getStyle($ref, 'width');
-            const listWidth = getStyle($list, 'width');
-            const left = refWidth / 2 - listWidth / 2;
-            $list.style.left = `${left}px`;
-        };
-
-        hover($ref, setLeft);
-
-        const destroyEvent = proxy($list, 'click', async (event) => {
-            const path = event.composedPath() || [];
-            const $item = path.find((item) => hasClass(item, 'art-selector-item'));
-            if (!$item) return;
-            inverseClass($item, 'art-current');
-            const index = Number($item.dataset.index);
-            const find = option.selector[index] || {};
-            $value.innerText = $item.innerText;
-            if (option.onSelect) {
-                const result = await option.onSelect.call(this.art, find, $item, event);
-                if (isStringOrNumber(result)) {
-                    $value.innerHTML = result;
-                }
-            }
-            setLeft();
-        });
-
-        events.push(destroyEvent);
     }
 
     remove(name) {

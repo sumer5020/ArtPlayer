@@ -84,7 +84,7 @@ var art = new Artplayer({
             tooltip: '5x',
             range: [5, 1, 10, 0.1],
             onRange: function (item) {
-                return item.range + 'x';
+                return item.range[0] + 'x';
             },
         },
     ],
@@ -116,11 +116,11 @@ var art = new Artplayer({
         {
             default: true,
             html: 'SD 480P',
-            url: '/assets/sample/video.mp4',
+            url: '/assets/sample/video.mp4?q=480',
         },
         {
             html: 'HD 720P',
-            url: '/assets/sample/video.mp4',
+            url: '/assets/sample/video.mp4?q=720',
         },
     ],
     thumbnails: {

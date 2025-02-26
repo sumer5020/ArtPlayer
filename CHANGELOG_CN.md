@@ -5,17 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+-   修复当网页没有head时,弹幕插件和章节插件引起的样式加载失败问题
+
+## [5.2.2] - 2025-01-19
+
+-   修复缩略图跨越问题
+-   修复当网页没有head时引起的样式加载失败问题
+-   新增字幕插件的设置面板的滑块支持移动端拖动
+-   修复设置面板在旋屏时的定位错误
+-   修复全屏状态变化时类名切换错误问题
+
+## [5.2.1] - 2024-10-26
+
+-   重构 `Setting` 组件，修复状态丢失的问题
+-   类型是 `range` 的 `Setting`，现在回调函数返回的 `range` 是数字的数组，不再是单一数字
+-   删除 `isStringOrNumber` 工具函数
+-   修复 `artplayer-plugin-hls-control` 状态不统一的问题
+-   废弃 `artplayer-plugin-dash-quality` 插件
+-   新增 `artplayer-plugin-dash-control` 插件
+-   使用 `code` 替代已废弃的`keyCode` 监听键盘事件
+-   新增 `keydown` 事件，监听来自 `document` 的 `keydown` 事件
+
+## [5.2.0] - 2024-10-19
 
 -   新增 `option.proxy` 选项，用于代理第三方的 `video` 和 `canvas`
--   新增 `artplayer-proxy-canvas` 代理
+-   新增 `artplayer-proxy-canvas` 代理，可以使用 `canvas` 播放视频
 -   新增 `artplayer-proxy-webav` 代理，来自 [bilibili/WebAV](https://github.com/bilibili/WebAV)
 -   新增 `option.thumbnails.scale`, 用于预览图缩放
--   修复更改 `art.url` 不能触发 `autoPlayBack` 的 `bug`: [#797](https://github.com/zhw2590582/ArtPlayer/issues/797)
--   新增 `art.subtitle.cues` 属性, 可用于手动调整字幕对象列表
+-   修复 `art.url` 更改不能触发 `autoPlayBack` 的 `bug`: [#797](https://github.com/zhw2590582/ArtPlayer/issues/797)
+-   新增 `art.subtitle.cues` 属性, 获取整体的字幕列表
+-   新增 `art.subtitle.activeCues` 属性, 获取活跃的字幕列表
 -   新增 `subtitleBeforeUpdate` 事件, 在字幕元素渲染前触发
 -   修改 `subtitleUpdate` 事件为 `subtitleAfterUpdate`, 在字幕元素渲染后触发
 -   优化 `subtitleLoad` 事件的触发时机和回调参数
 -   删除 `subtitleSwitch` 事件，请使用 `subtitleLoad` 代替
+-   升级 `artplayer-plugin-hls-quality` 为 `artplayer-plugin-hls-control`
+-   新增 `artplayer-plugin-ambilight` 插件
+-   修复 `thumbnails` 显示 bug
 
 ## [5.1.7] - 2024-8-15
 

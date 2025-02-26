@@ -1,5 +1,3 @@
-import { inverseClass, queryAll } from '../utils';
-
 export default function aspectRatio(art) {
     const {
         i18n,
@@ -11,10 +9,9 @@ export default function aspectRatio(art) {
         return value === 'default' ? i18n.get('Default') : value;
     }
 
-    function update($panel, $tooltip, value) {
-        if ($tooltip) $tooltip.innerText = getI18n(value);
-        const $current = queryAll('.art-setting-item', $panel).find((item) => item.dataset.value === value);
-        if ($current) inverseClass($current, 'art-current');
+    function update() {
+        const target = art.setting.find(`aspect-ratio-${art.aspectRatio}`);
+        art.setting.check(target);
     }
 
     return {
@@ -35,11 +32,9 @@ export default function aspectRatio(art) {
             art.aspectRatio = item.value;
             return item.html;
         },
-        mounted: ($panel, item) => {
-            update($panel, item.$tooltip, art.aspectRatio);
-            art.on('aspectRatio', () => {
-                update($panel, item.$tooltip, art.aspectRatio);
-            });
+        mounted: () => {
+            update();
+            art.on('aspectRatio', () => update());
         },
     };
 }

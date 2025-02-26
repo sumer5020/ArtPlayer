@@ -12,11 +12,12 @@ export default function qualityMix(art) {
                 style: {
                     marginRight: '10px',
                 },
-                html: qualityDefault ? qualityDefault.html : '',
+                html: qualityDefault?.html || '',
                 selector: quality,
                 async onSelect(item) {
                     await art.switchQuality(item.url);
                     notice.show = `${i18n.get('Switch Video')}: ${item.html}`;
+                    return item.html;
                 },
             });
         },

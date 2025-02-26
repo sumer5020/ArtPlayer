@@ -153,8 +153,8 @@ declare class Artplayer extends Player {
         get url(): string;
         set url(url: string);
         get textTrack(): TextTrack;
-        get activeCue(): VTTCue;
-        get cues(): TextTrackCueList;
+        get activeCues(): VTTCue[];
+        get cues(): VTTCue[];
         style(name: string | Partial<CSSStyleDeclaration>, value?: string): void;
         switch(url: string, option?: Subtitle): Promise<string>;
     } & Component;
@@ -165,8 +165,8 @@ declare class Artplayer extends Player {
 
     readonly hotkey: {
         keys: Record<string, ((event: Event) => any)[]>;
-        add(key: number, callback: (this: Artplayer, event: Event) => any): Artplayer['hotkey'];
-        remove(key: number, callback: Function): Artplayer['hotkey'];
+        add(key: string, callback: (this: Artplayer, event: Event) => any): Artplayer['hotkey'];
+        remove(key: string, callback: Function): Artplayer['hotkey'];
     };
 
     readonly mask: Component;

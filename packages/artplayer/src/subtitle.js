@@ -19,7 +19,7 @@ export default class Subtitle extends Component {
         super(art);
         this.name = 'subtitle';
         this.option = null;
-        this.eventDestroy = () => null;
+        this.destroyEvent = () => null;
         this.init(art.option.subtitle);
 
         let lastState = false;
@@ -46,9 +46,9 @@ export default class Subtitle extends Component {
         return this.art.template.$video?.textTracks?.[0];
     }
 
-    get activeCue() {
-        if (!this.textTrack) return null;
-        return this.textTrack.activeCues[0];
+    get activeCues() {
+        if (!this.textTrack) return [];
+        return Array.from(this.textTrack.activeCues);
     }
 
     get cues() {
@@ -65,20 +65,30 @@ export default class Subtitle extends Component {
     }
 
     update() {
-        const { $subtitle } = this.art.template;
+        const {
+            option: { subtitle },
+            template: { $subtitle },
+        } = this.art;
+
         $subtitle.innerHTML = '';
-        if (this.activeCue) {
-            this.art.emit('subtitleBeforeUpdate', this.activeCue);
-            if (this.art.option.subtitle.escape) {
-                $subtitle.innerHTML = this.activeCue.text
+        if (!this.activeCues.length) return;
+
+        this.art.emit('subtitleBeforeUpdate', this.activeCues);
+        $subtitle.innerHTML = this.activeCues
+            .map((cue, index) =>
+                cue.text
                     .split(/\r?\n/)
-                    .map((item) => `<div class="art-subtitle-line">${escape(item)}</div>`)
-                    .join('');
-            } else {
-                $subtitle.innerHTML = this.activeCue.text;
-            }
-            this.art.emit('subtitleAfterUpdate', this.activeCue);
-        }
+                    .filter((line) => line.trim())
+                    .map(
+                        (line) =>
+                            `<div class="art-subtitle-line" data-group="${index}">
+                                ${subtitle.escape ? escape(line) : line}
+                            </div>`,
+                    )
+                    .join(''),
+            )
+            .join('');
+        this.art.emit('subtitleAfterUpdate', this.activeCues);
     }
 
     async switch(url, newOption = {}) {
@@ -102,15 +112,15 @@ export default class Subtitle extends Component {
         $newTrack.label = option.subtitle.name || 'Artplayer';
         $newTrack.track.mode = 'hidden';
         $newTrack.onload = () => {
-            this.art.emit('subtitleLoad', this.option, this.cues);
+            this.art.emit('subtitleLoad', this.cues, this.option);
         };
 
-        this.eventDestroy();
+        this.art.events.remove(this.destroyEvent);
         $track.onload = null;
         remove($track);
         append($video, $newTrack);
         template.$track = $newTrack;
-        this.eventDestroy = proxy(this.textTrack, 'cuechange', () => this.update());
+        this.destroyEvent = proxy(this.textTrack, 'cuechange', () => this.update());
     }
 
     async init(subtitleOption) {

@@ -3,19 +3,20 @@ import aspectRatio from './aspectRatio';
 import playbackRate from './playbackRate';
 import subtitleOffset from './subtitleOffset';
 import Component from '../utils/component';
-import { errorHandle } from '../utils/error';
 import {
     def,
     has,
+    remove,
     append,
     getRect,
     addClass,
     setStyle,
     isMobile,
+    errorHandle,
     inverseClass,
     createElement,
+    replaceElement,
     includeFromEvent,
-    isStringOrNumber,
 } from '../utils';
 
 export default class Setting extends Component {
@@ -31,42 +32,36 @@ export default class Setting extends Component {
         this.name = 'setting';
         this.$parent = $setting;
 
-        this.option = [];
-        this.events = [];
+        this.id = 0;
+        this.active = null;
         this.cache = new Map();
+        this.option = [...this.builtin, ...option.settings];
 
         if (option.setting) {
-            this.init();
+            this.format();
+            this.render();
 
             art.on('blur', () => {
                 if (this.show) {
                     this.show = false;
-                    this.render(this.option);
+                    this.render();
                 }
             });
 
             art.on('focus', (event) => {
-                const isSetting = includeFromEvent(event, controls.setting);
-                const isParent = includeFromEvent(event, this.$parent);
-                if (this.show && !isSetting && !isParent) {
+                const isControl = includeFromEvent(event, controls.setting);
+                const isSetting = includeFromEvent(event, this.$parent);
+                if (this.show && !isControl && !isSetting) {
                     this.show = false;
-                    this.render(this.option);
+                    this.render();
                 }
             });
+
+            art.on('resize', () => this.resize());
         }
     }
 
-    static makeRecursion(option, parentItem, parentList) {
-        for (let index = 0; index < option.length; index++) {
-            const item = option[index];
-            item.$parentItem = parentItem;
-            item.$parentList = parentList;
-            Setting.makeRecursion(item.selector || [], item, option);
-        }
-        return option;
-    }
-
-    get defaultSettings() {
+    get builtin() {
         const result = [];
         const { option } = this.art;
 
@@ -89,98 +84,198 @@ export default class Setting extends Component {
         return result;
     }
 
-    init() {
-        const { option } = this.art;
-        const mergeSettings = [...this.defaultSettings, ...option.settings];
-        this.option = Setting.makeRecursion(mergeSettings);
-        this.destroy();
-        this.render(this.option);
-    }
-
-    destroy() {
-        for (let index = 0; index < this.events.length; index++) {
-            this.art.events.remove(this.events[index]);
-        }
-        this.$parent.innerHTML = '';
-        this.events = [];
-        this.cache = new Map();
-    }
-
-    find(name = '', option = this.option) {
+    traverse(callback, option = this.option) {
         for (let index = 0; index < option.length; index++) {
             const item = option[index];
-            if (item.name === name) {
-                return item;
-            } else {
-                const result = this.find(name, item.selector || []);
-                if (result) return result;
+            callback(item);
+            if (item.selector?.length) {
+                this.traverse.call(this, callback, item.selector);
             }
         }
     }
 
+    check(target) {
+        target.$parent.tooltip = target.html;
+        this.traverse((item) => {
+            item.default = item === target;
+            if (item.default && item.$item) {
+                inverseClass(item.$item, 'art-current');
+            }
+        }, target.$option);
+        this.render(target.$parents);
+    }
+
+    format(option = this.option, parent, parents, names = []) {
+        for (let index = 0; index < option.length; index++) {
+            const item = option[index];
+
+            if (item?.name) {
+                errorHandle(!names.includes(item.name), `The [${item.name}] is already exist in [setting]`);
+                names.push(item.name);
+            } else {
+                item.name = `setting-${this.id++}`;
+            }
+
+            if (!item.$formatted) {
+                def(item, '$parent', {
+                    get: () => parent,
+                });
+
+                def(item, '$parents', {
+                    get: () => parents,
+                });
+
+                def(item, '$option', {
+                    get: () => option,
+                });
+
+                const $events = [];
+                def(item, '$events', {
+                    get: () => $events,
+                });
+
+                def(item, '$formatted', {
+                    get: () => true,
+                });
+            }
+
+            this.format(item.selector || [], item, option, names);
+        }
+
+        this.option = option;
+    }
+
+    find(name = '') {
+        let result = null;
+        this.traverse((item) => {
+            if (item.name === name) {
+                result = item;
+            }
+        });
+        return result;
+    }
+
+    resize() {
+        const {
+            controls,
+            constructor: { SETTING_WIDTH, SETTING_ITEM_HEIGHT },
+            template: { $player, $setting },
+        } = this.art;
+
+        if (controls.setting && this.show) {
+            const settingWidth = this.active[0]?.$parent?.width || SETTING_WIDTH;
+            const { left: controlLeft, width: controlWidth } = getRect(controls.setting);
+            const { left: playerLeft, width: playerWidth } = getRect($player);
+            const settingLeft = controlLeft - playerLeft + controlWidth / 2 - settingWidth / 2;
+
+            const settingHeight =
+                this.active === this.option
+                    ? this.active.length * SETTING_ITEM_HEIGHT
+                    : (this.active.length + 1) * SETTING_ITEM_HEIGHT;
+
+            setStyle($setting, 'height', `${settingHeight}px`);
+            setStyle($setting, 'width', `${settingWidth}px`);
+
+            if (this.art.isRotate || isMobile) return;
+
+            if (settingLeft + settingWidth > playerWidth) {
+                setStyle($setting, 'left', null);
+                setStyle($setting, 'right', null);
+            } else {
+                setStyle($setting, 'left', `${settingLeft}px`);
+                setStyle($setting, 'right', 'auto');
+            }
+        }
+    }
+
+    inactivate(item) {
+        for (let index = 0; index < item.$events.length; index++) {
+            this.art.events.remove(item.$events[index]);
+        }
+        item.$events.length = 0;
+    }
+
     remove(name) {
         const item = this.find(name);
-        errorHandle(item, `Can't find [${name}] from the [setting]`);
-        const parent = item.$parentItem ? item.$parentItem.selector : this.option;
-        parent.splice(parent.indexOf(item), 1);
-        this.option = Setting.makeRecursion(this.option);
-        this.destroy();
-        this.render(this.option);
-        return this.option;
+        errorHandle(item, `Can't find [${name}] in the [setting]`);
+        const index = item.$option.indexOf(item);
+        item.$option.splice(index, 1);
+        this.inactivate(item);
+        if (item.$item) remove(item.$item);
+        this.render();
     }
 
-    update(setting) {
-        const item = this.find(setting.name);
+    update(target) {
+        const item = this.find(target.name);
+
         if (item) {
-            Object.assign(item, setting);
-            this.option = Setting.makeRecursion(this.option);
-            this.destroy();
-            this.render(this.option);
+            this.inactivate(item);
+            Object.assign(item, target);
+            this.format();
+            this.creatItem(item, true);
+            this.render();
+            return item;
         } else {
-            this.add(setting);
+            return this.add(target);
         }
-        return this.option;
     }
 
-    add(setting) {
-        this.option.push(setting);
-        this.option = Setting.makeRecursion(this.option);
-        this.destroy();
-        this.render(this.option);
-        return this.option;
+    add(item, option = this.option) {
+        option.push(item);
+        this.format();
+        this.creatItem(item);
+        this.render();
+        return item;
     }
 
     creatHeader(item) {
-        const { icons, proxy, constructor } = this.art;
+        if (!this.cache.has(item.$option)) return;
+        const $panel = this.cache.get(item.$option);
+
+        const {
+            proxy,
+            icons: { arrowLeft },
+            constructor: { SETTING_ITEM_HEIGHT },
+        } = this.art;
+
         const $item = createElement('div');
-        setStyle($item, 'height', `${constructor.SETTING_ITEM_HEIGHT}px`);
+        setStyle($item, 'height', `${SETTING_ITEM_HEIGHT}px`);
         addClass($item, 'art-setting-item');
         addClass($item, 'art-setting-item-back');
         const $left = append($item, '<div class="art-setting-item-left"></div>');
         const $icon = createElement('div');
         addClass($icon, 'art-setting-item-left-icon');
-        append($icon, icons.arrowLeft);
+        append($icon, arrowLeft);
         append($left, $icon);
-        append($left, item.$parentItem.html);
-        const event = proxy($item, 'click', () => this.render(item.$parentList));
-        this.events.push(event);
-        return $item;
+        append($left, item.$parent.html);
+        const event = proxy($item, 'click', () => this.render(item.$parents));
+        item.$parent.$events.push(event);
+        append($panel, $item);
     }
 
-    creatItem(type, item) {
+    creatItem(item, isUpdate = false) {
+        if (!this.cache.has(item.$option)) return;
+        const $panel = this.cache.get(item.$option);
+        const oldItem = item.$item;
+
+        let type = 'selector';
+
+        if (has(item, 'switch')) {
+            type = 'switch';
+        }
+
+        if (has(item, 'range')) {
+            type = 'range';
+        }
+
         const { icons, proxy, constructor } = this.art;
 
         const $item = createElement('div');
         addClass($item, 'art-setting-item');
         setStyle($item, 'height', `${constructor.SETTING_ITEM_HEIGHT}px`);
 
-        if (isStringOrNumber(item.name)) {
-            $item.dataset.name = item.name;
-        }
-
-        if (isStringOrNumber(item.value)) {
-            $item.dataset.value = item.value;
-        }
+        $item.dataset.name = item.name || '';
+        $item.dataset.value = item.value || '';
 
         const $left = append($item, '<div class="art-setting-item-left"></div>');
         const $right = append($item, '<div class="art-setting-item-right"></div>');
@@ -191,14 +286,11 @@ export default class Setting extends Component {
         switch (type) {
             case 'switch':
             case 'range':
-                append($icon, isStringOrNumber(item.icon) || item.icon instanceof Element ? item.icon : icons.config);
+                append($icon, item.icon || icons.config);
                 break;
             case 'selector':
-                if (item.selector && item.selector.length) {
-                    append(
-                        $icon,
-                        isStringOrNumber(item.icon) || item.icon instanceof Element ? item.icon : icons.config,
-                    );
+                if (item.selector?.length) {
+                    append($icon, item.icon || icons.config);
                 } else {
                     append($icon, icons.check);
                 }
@@ -208,7 +300,11 @@ export default class Setting extends Component {
         }
 
         append($left, $icon);
-        item.$icon = $icon;
+
+        def(item, '$icon', {
+            configurable: true,
+            get: () => $icon,
+        });
 
         def(item, 'icon', {
             configurable: true,
@@ -216,9 +312,8 @@ export default class Setting extends Component {
                 return $icon.innerHTML;
             },
             set(value) {
-                if (isStringOrNumber(value)) {
-                    $icon.innerHTML = value;
-                }
+                $icon.innerHTML = '';
+                append($icon, value);
             },
         });
 
@@ -226,7 +321,11 @@ export default class Setting extends Component {
         addClass($html, 'art-setting-item-left-text');
         append($html, item.html || '');
         append($left, $html);
-        item.$html = $html;
+
+        def(item, '$html', {
+            configurable: true,
+            get: () => $html,
+        });
 
         def(item, 'html', {
             configurable: true,
@@ -234,9 +333,8 @@ export default class Setting extends Component {
                 return $html.innerHTML;
             },
             set(value) {
-                if (isStringOrNumber(value)) {
-                    $html.innerHTML = value;
-                }
+                $html.innerHTML = '';
+                append($html, value);
             },
         });
 
@@ -244,7 +342,11 @@ export default class Setting extends Component {
         addClass($tooltip, 'art-setting-item-right-tooltip');
         append($tooltip, item.tooltip || '');
         append($right, $tooltip);
-        item.$tooltip = $tooltip;
+
+        def(item, '$tooltip', {
+            configurable: true,
+            get: () => $tooltip,
+        });
 
         def(item, 'tooltip', {
             configurable: true,
@@ -252,29 +354,31 @@ export default class Setting extends Component {
                 return $tooltip.innerHTML;
             },
             set(value) {
-                if (isStringOrNumber(value)) {
-                    $tooltip.innerHTML = value;
-                }
+                $tooltip.innerHTML = '';
+                append($tooltip, value);
             },
         });
 
         switch (type) {
             case 'switch': {
-                const $state = createElement('div');
-                addClass($state, 'art-setting-item-right-icon');
-                const $switchOn = append($state, icons.switchOn);
-                const $switchOff = append($state, icons.switchOff);
+                const $switch = createElement('div');
+                addClass($switch, 'art-setting-item-right-icon');
+                const $switchOn = append($switch, icons.switchOn);
+                const $switchOff = append($switch, icons.switchOff);
                 setStyle(item.switch ? $switchOff : $switchOn, 'display', 'none');
-                append($right, $state);
-                item.$switch = item.switch;
+                append($right, $switch);
 
+                def(item, '$switch', {
+                    configurable: true,
+                    get: () => $switch,
+                });
+
+                let $switchValue = item.switch;
                 def(item, 'switch', {
                     configurable: true,
-                    get() {
-                        return item.$switch;
-                    },
+                    get: () => $switchValue,
                     set(value) {
-                        item.$switch = value;
+                        $switchValue = value;
                         if (value) {
                             setStyle($switchOff, 'display', 'none');
                             setStyle($switchOn, 'display', null);
@@ -291,27 +395,34 @@ export default class Setting extends Component {
                     const $state = createElement('div');
                     addClass($state, 'art-setting-item-right-icon');
                     const $range = append($state, '<input type="range">');
-                    $range.value = item.range[0] || 0;
-                    $range.min = item.range[1] || 0;
-                    $range.max = item.range[2] || 10;
-                    $range.step = item.range[3] || 1;
+                    $range.value = item.range[0];
+                    $range.min = item.range[1];
+                    $range.max = item.range[2];
+                    $range.step = item.range[3];
                     addClass($range, 'art-setting-range');
                     append($right, $state);
-                    item.$range = $range;
 
+                    def(item, '$range', {
+                        configurable: true,
+                        get: () => $range,
+                    });
+
+                    let $rangeValue = [...item.range];
                     def(item, 'range', {
                         configurable: true,
-                        get() {
-                            return $range.valueAsNumber;
-                        },
+                        get: () => $rangeValue,
                         set(value) {
-                            $range.value = Number(value);
+                            $rangeValue = [...value];
+                            $range.value = value[0];
+                            $range.min = value[1];
+                            $range.max = value[2];
+                            $range.step = value[3];
                         },
                     });
                 }
                 break;
             case 'selector':
-                if (item.selector && item.selector.length) {
+                if (item.selector?.length) {
                     const $state = createElement('div');
                     addClass($state, 'art-setting-item-right-icon');
                     append($state, icons.arrowRight);
@@ -328,8 +439,7 @@ export default class Setting extends Component {
                     const event = proxy($item, 'click', async (event) => {
                         item.switch = await item.onSwitch.call(this.art, item, $item, event);
                     });
-
-                    this.events.push(event);
+                    item.$events.push(event);
                 }
                 break;
             }
@@ -337,16 +447,18 @@ export default class Setting extends Component {
                 if (item.$range) {
                     if (item.onRange) {
                         const event = proxy(item.$range, 'change', async (event) => {
+                            item.range[0] = item.$range.valueAsNumber;
                             item.tooltip = await item.onRange.call(this.art, item, $item, event);
                         });
-                        this.events.push(event);
+                        item.$events.push(event);
                     }
 
                     if (item.onChange) {
                         const event = proxy(item.$range, 'input', async (event) => {
+                            item.range[0] = item.$range.valueAsNumber;
                             item.tooltip = await item.onChange.call(this.art, item, $item, event);
                         });
-                        this.events.push(event);
+                        item.$events.push(event);
                     }
                 }
                 break;
@@ -354,30 +466,17 @@ export default class Setting extends Component {
             case 'selector':
                 {
                     const event = proxy($item, 'click', async (event) => {
-                        if (item.selector && item.selector.length) {
-                            this.render(item.selector, item.width);
+                        if (item.selector?.length) {
+                            this.render(item.selector);
                         } else {
-                            inverseClass($item, 'art-current');
-
-                            for (let index = 0; index < item.$parentItem.selector.length; index++) {
-                                const element = item.$parentItem.selector[index];
-                                element.default = element === item;
-                            }
-
-                            if (item.$parentList) {
-                                this.render(item.$parentList);
-                            }
-
-                            if (item.$parentItem && item.$parentItem.onSelect) {
-                                const result = await item.$parentItem.onSelect.call(this.art, item, $item, event);
-                                if (item.$parentItem.$tooltip && isStringOrNumber(result)) {
-                                    item.$parentItem.$tooltip.innerHTML = result;
-                                }
+                            this.check(item);
+                            if (item.$parent.onSelect) {
+                                item.$parent.tooltip = await item.$parent.onSelect.call(this.art, item, $item, event);
                             }
                         }
                     });
 
-                    this.events.push(event);
+                    item.$events.push(event);
 
                     if (item.default) {
                         addClass($item, 'art-current');
@@ -388,72 +487,42 @@ export default class Setting extends Component {
                 break;
         }
 
-        return $item;
-    }
+        def(item, '$item', {
+            configurable: true,
+            get: () => $item,
+        });
 
-    updateStyle(width) {
-        const {
-            controls,
-            constructor,
-            template: { $player, $setting },
-        } = this.art;
+        if (isUpdate) {
+            replaceElement($item, oldItem);
+        } else {
+            append($panel, $item);
+        }
 
-        if (controls.setting && !isMobile) {
-            const settingWidth = width || constructor.SETTING_WIDTH;
-            const { left: controlLeft, width: controlWidth } = getRect(controls.setting);
-            const { left: playerLeft, width: playerWidth } = getRect($player);
-            const settingLeft = controlLeft - playerLeft + controlWidth / 2 - settingWidth / 2;
-            if (settingLeft + settingWidth > playerWidth) {
-                setStyle($setting, 'left', null);
-                setStyle($setting, 'right', null);
-            } else {
-                setStyle($setting, 'left', `${settingLeft}px`);
-                setStyle($setting, 'right', 'auto');
-            }
+        if (item.mounted) {
+            setTimeout(() => item.mounted.call(this.art, item.$item, item), 0);
         }
     }
 
-    render(option, width) {
-        const { constructor } = this.art;
-
+    render(option = this.option) {
+        this.active = option;
         if (this.cache.has(option)) {
             const $panel = this.cache.get(option);
             inverseClass($panel, 'art-current');
-            setStyle(this.$parent, 'width', `${$panel.dataset.width}px`);
-            setStyle(this.$parent, 'height', `${$panel.dataset.height}px`);
-            this.updateStyle(Number($panel.dataset.width));
         } else {
             const $panel = createElement('div');
+            this.cache.set(option, $panel);
             addClass($panel, 'art-setting-panel');
-            $panel.dataset.width = width || constructor.SETTING_WIDTH;
-            $panel.dataset.height = option.length * constructor.SETTING_ITEM_HEIGHT;
+            append(this.$parent, $panel);
+            inverseClass($panel, 'art-current');
 
-            if (option[0] && option[0].$parentItem) {
-                append($panel, this.creatHeader(option[0]));
-                $panel.dataset.height = Number($panel.dataset.height) + constructor.SETTING_ITEM_HEIGHT;
+            if (option[0]?.$parent) {
+                this.creatHeader(option[0]);
             }
 
             for (let index = 0; index < option.length; index++) {
-                const item = option[index];
-                if (has(item, 'switch')) {
-                    append($panel, this.creatItem('switch', item));
-                } else if (has(item, 'range')) {
-                    append($panel, this.creatItem('range', item));
-                } else {
-                    append($panel, this.creatItem('selector', item));
-                }
-            }
-
-            append(this.$parent, $panel);
-            this.cache.set(option, $panel);
-            inverseClass($panel, 'art-current');
-            setStyle(this.$parent, 'width', `${$panel.dataset.width}px`);
-            setStyle(this.$parent, 'height', `${$panel.dataset.height}px`);
-            this.updateStyle(Number($panel.dataset.width));
-
-            if (option[0] && option[0].$parentItem && option[0].$parentItem.mounted) {
-                option[0].$parentItem.mounted.call(this.art, $panel, option[0].$parentItem);
+                this.creatItem(option[index]);
             }
         }
+        this.resize();
     }
 }
